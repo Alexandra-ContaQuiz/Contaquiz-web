@@ -21,6 +21,8 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
+  fetchSignInMethodsForEmail,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -103,6 +105,28 @@ export async function iniciarSesion({ email, password }) {
 /** Cierra la sesión actual. */
 export async function cerrarSesion() {
   await signOut(auth);
+}
+
+/**
+ * Revisa si ya existe una cuenta registrada con ese correo.
+ * Nota: si en Firebase Console tienes activada la protección
+ * "Email Enumeration Protection" (Authentication > Settings),
+ * este método siempre devolverá un array vacío por seguridad,
+ * y no podrá distinguir entre correos existentes o no.
+ * Desactívala ahí si quieres que esta verificación funcione.
+ */
+export async function verificarCorreoExiste(email) {
+  const metodos = await fetchSignInMethodsForEmail(auth, email);
+  return metodos.length > 0;
+}
+
+/**
+ * Envía un correo de recuperación de contraseña a la dirección indicada.
+ * Firebase se encarga de generar el link seguro y de enviarlo;
+ * no revela si el correo existe o no en la respuesta, por seguridad.
+ */
+export async function recuperarContrasena(email) {
+  await sendPasswordResetEmail(auth, email);
 }
 
 /**
