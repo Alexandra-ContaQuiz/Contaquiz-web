@@ -9,6 +9,7 @@ import {
   registrarResultadoQuiz,
   activarPremium,
   obtenerRankingGlobal,
+  recuperarContrasena,
 } from "./firebaseConfig.js";
 
 /* ─────────────────────────────────────────
@@ -37,6 +38,11 @@ const TEXTOS = {
     o: "o", probarGratis: "🎁 Probar gratis (3 preguntas sin registro)",
     datosSeguros: "🔒 Tus datos están seguros · Sin necesidad de tarjeta de crédito",
     yaTienesCuenta: "¿Ya tienes cuenta? Inicia sesión",
+    olvidasteContrasena: "¿Olvidaste tu contraseña?",
+    recuperarTitulo: "Recuperar contraseña",
+    recuperarDesc: "Ingresa tu correo y te enviaremos un enlace para crear una nueva contraseña.",
+    recuperarBtn: "Enviar enlace de recuperación",
+    volverALogin: "← Volver a iniciar sesión",
     continuaRegistroTitulo: "¡Vas muy bien! 🎉",
     continuaRegistroDesc: "Ya respondiste tus 3 preguntas gratis. Crea tu cuenta gratis para seguir con las 7 restantes y guardar tu progreso.",
     seleccionaModulo: "Selecciona un Módulo",
@@ -131,6 +137,11 @@ const TEXTOS = {
     o: "or", probarGratis: "🎁 Try for free (3 questions, no sign-up)",
     datosSeguros: "🔒 Your data is secure · No credit card required",
     yaTienesCuenta: "Already have an account? Sign in",
+    olvidasteContrasena: "Forgot your password?",
+    recuperarTitulo: "Reset password",
+    recuperarDesc: "Enter your email and we'll send you a link to create a new password.",
+    recuperarBtn: "Send reset link",
+    volverALogin: "← Back to sign in",
     continuaRegistroTitulo: "You're doing great! 🎉",
     continuaRegistroDesc: "You've used your 3 free questions. Create a free account to continue with the remaining 7 and save your progress.",
     seleccionaModulo: "Select a Module",
@@ -622,6 +633,10 @@ export default function ContaQuiz() {
   const [loginError, setLoginError] = useState("");
   const [loginExito, setLoginExito] = useState("");
   const [modoAuth, setModoAuth] = useState("login");
+  const [emailRecuperar, setEmailRecuperar] = useState("");
+  const [recuperarError, setRecuperarError] = useState("");
+  const [recuperarExito, setRecuperarExito] = useState("");
+  const [cargandoRecuperar, setCargandoRecuperar] = useState(false);
   const [verPassword, setVerPassword] = useState(false);
   const [verConfirmar, setVerConfirmar] = useState(false);
   const [planSel, setPlanSel] = useState("mensual");
@@ -889,6 +904,32 @@ export default function ContaQuiz() {
     return mapa[codigo] || "Ocurrió un error inesperado. Inténtalo de nuevo.";
   }
 
+  // Envía el correo de recuperación de contraseña. Por seguridad, no revelamos
+  // si el correo existe o no; mostramos siempre el mismo mensaje de éxito
+  // una vez que la solicitud se procesó sin errores de formato.
+  const handleRecuperarContrasena = async () => {
+    setRecuperarError("");
+    setRecuperarExito("");
+    const correo = emailRecuperar.trim();
+    if (!correo) {
+      setRecuperarError("Ingresa tu correo electrónico.");
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(correo)) {
+      setRecuperarError("El correo electrónico no es válido.");
+      return;
+    }
+    setCargandoRecuperar(true);
+    try {
+      await recuperarContrasena(correo);
+      setRecuperarExito(`Si ese correo tiene una cuenta, te enviamos un enlace para restablecer tu contraseña. Revisa tu bandeja de entrada (y spam).`);
+    } catch (err) {
+      setRecuperarError(traducirErrorFirebase(err.code));
+    } finally {
+      setCargandoRecuperar(false);
+    }
+  };
+
   const pct = preguntas.length ? Math.round((idx + (respondida?1:0)) / preguntas.length * 100) : 0;
   const pregActual = preguntas[idx];
   const porcentajeAciertos = historial.length ? Math.round(aciertos / historial.length * 100) : 0;
@@ -1036,11 +1077,54 @@ export default function ContaQuiz() {
                 </div>
               ) : (
                 <p style={{ color:"#64748B", fontSize:14, marginTop:10, fontFamily:"'Inter',sans-serif" }}>
-                  {modoAuth === "login" ? t("iniciarSesionTitulo") : t("crearCuentaTitulo")}
+                  {modoAuth === "recuperar" ? t("recuperarTitulo") : modoAuth === "login" ? t("iniciarSesionTitulo") : t("crearCuentaTitulo")}
                 </p>
               )}
             </div>
 
+            {modoAuth === "recuperar" ? (
+              <>
+                <p style={{ color:"#64748B", fontSize:13.5, marginTop:-14, marginBottom:20, fontFamily:"'Inter',sans-serif", textAlign:"center" }}>
+                  {t("recuperarDesc")}
+                </p>
+
+                <div>
+                  <label style={{ fontSize:13, fontWeight:600, color:"#475569", display:"block", marginBottom:6, fontFamily:"'Montserrat',sans-serif" }}>
+                    📧 {t("correoElectronico")} <span style={{ color:"#E74C3C" }}>*</span>
+                  </label>
+                  <input type="email" placeholder={t("placeholderCorreo")} value={emailRecuperar}
+                    onChange={e => setEmailRecuperar(e.target.value)}
+                    style={{ borderColor: /\S+@\S+\.\S+/.test(emailRecuperar) ? "#27AE60" : "" }} />
+                </div>
+
+                {recuperarError && (
+                  <div style={{ background:"#FEF2F2", border:"1px solid #FECACA", borderRadius:10, padding:"10px 14px", marginTop:14, display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:16 }}>⚠️</span>
+                    <p style={{ color:"#DC2626", fontSize:13, fontFamily:"'Inter',sans-serif" }}>{recuperarError}</p>
+                  </div>
+                )}
+                {recuperarExito && (
+                  <div style={{ background:"#F0FDF4", border:"1px solid #BBF7D0", borderRadius:10, padding:"10px 14px", marginTop:14, display:"flex", alignItems:"center", gap:8, animation:"fadeUp .4s ease" }}>
+                    <span style={{ fontSize:16 }}>✅</span>
+                    <p style={{ color:"#166534", fontSize:13, fontFamily:"'Inter',sans-serif", fontWeight:600 }}>{recuperarExito}</p>
+                  </div>
+                )}
+
+                <button className="btn-secondary" onClick={handleRecuperarContrasena} disabled={cargandoRecuperar}
+                  style={{ width:"100%", padding:"15px", fontSize:15, marginTop:20, opacity: cargandoRecuperar ? 0.7 : 1, cursor: cargandoRecuperar ? "wait" : "pointer" }}>
+                  {cargandoRecuperar ? t("procesando") : t("recuperarBtn")}
+                </button>
+
+                <div style={{ textAlign:"center", marginTop:16 }}>
+                  <span
+                    onClick={() => { setModoAuth("login"); setRecuperarError(""); setRecuperarExito(""); }}
+                    style={{ cursor:"pointer", textDecoration:"underline", color:"#64748B", fontSize:13, fontFamily:"'Inter',sans-serif" }}>
+                    {t("volverALogin")}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
             {/* Tabs */}
             <div style={{ display:"flex", background:"#F0F4F8", borderRadius:12, padding:4, marginBottom:24 }}>
               {[["login",`🔑 ${t("tabLogin")}`],["registro",`✏️ ${t("tabRegistro")}`]].map(([m,l]) => (
@@ -1113,6 +1197,17 @@ export default function ContaQuiz() {
                 }
               />
 
+              {/* Link de recuperación de contraseña (solo en modo login) */}
+              {modoAuth === "login" && (
+                <div style={{ textAlign:"right", marginTop:-6, marginBottom:10 }}>
+                  <span
+                    onClick={() => { setRecuperarError(""); setRecuperarExito(""); setEmailRecuperar(loginForm.email || ""); setModoAuth("recuperar"); }}
+                    style={{ cursor:"pointer", textDecoration:"underline", color:"#64748B", fontSize:12.5, fontFamily:"'Inter',sans-serif" }}>
+                    {t("olvidasteContrasena")}
+                  </span>
+                </div>
+              )}
+
               {/* Confirmar contraseña (solo registro) */}
               {modoAuth === "registro" && (
                 <CampoPassword
@@ -1171,6 +1266,8 @@ export default function ContaQuiz() {
                   style={{ width:"100%", padding:"13px", fontSize:14 }}>
                   {t("probarGratis")}
                 </button>
+              </>
+            )}
               </>
             )}
 
